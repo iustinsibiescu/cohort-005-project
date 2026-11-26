@@ -1,0 +1,654 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PROTOTYPE · Notification Types: three ways to store them</title>
+<style>
+  :root {
+    --bg: #f7f7f5; --card: #fff; --ink: #1d1d1b; --muted: #6b6b66; --line: #e4e4df;
+    --accent: #3b5bdb; --accent-soft: #edf1fd; --warn: #fff3bf; --warn-ink: #7a5d00; --gone: #f1f1ee;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; color: var(--ink); background: var(--bg); }
+  header { padding: 20px 28px 8px; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 0 0 10px; font-weight: 600; }
+  h3 { font-size: 14px; margin: 0; }
+  .tag-proto { display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: .08em; background: var(--ink); color: #fff; padding: 2px 6px; border-radius: 4px; margin-right: 8px; vertical-align: 2px; }
+  .lede { color: var(--muted); max-width: 900px; margin: 0; }
+  .layout { display: grid; grid-template-columns: 300px 1fr; gap: 20px; padding: 16px 28px 40px; align-items: start; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; }
+  aside { position: sticky; top: 12px; display: flex; flex-direction: column; gap: 14px; max-height: calc(100vh - 24px); overflow: auto; }
+  .group { margin-bottom: 12px; }
+  .group:last-child { margin-bottom: 0; }
+  .who { font-size: 12px; font-weight: 600; color: var(--muted); margin: 0 0 6px; }
+  button { font: inherit; cursor: pointer; border: 1px solid var(--line); background: #fff; color: var(--ink); border-radius: 7px; padding: 6px 10px; text-align: left; }
+  button:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+  button:disabled { opacity: .4; cursor: not-allowed; }
+  .actions button { display: block; width: 100%; margin-bottom: 5px; }
+  .primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .primary:hover:not(:disabled) { color: #fff; filter: brightness(1.08); }
+  .tabs { display: flex; gap: 4px; flex-wrap: wrap; padding: 0 28px; }
+  .tabs button { border-radius: 7px 7px 0 0; border-bottom: none; background: transparent; color: var(--muted); }
+  .tabs button.on { background: var(--card); color: var(--ink); border-color: var(--line); font-weight: 600; }
+  .walk { margin: 0 28px; border-radius: 0 10px 10px 10px; }
+  .walk p { margin: 0 0 10px; max-width: 900px; }
+  .steps { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .steps .done { background: var(--accent-soft); border-color: transparent; color: var(--muted); }
+  .steps .arrow { color: var(--muted); }
+  .watch { margin-top: 10px; font-size: 13px; color: var(--warn-ink); background: var(--warn); padding: 8px 10px; border-radius: 7px; max-width: 900px; }
+  .viewer { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-bottom: 14px; }
+  .viewer button.on { background: var(--ink); color: #fff; border-color: var(--ink); }
+  .badge { display: inline-block; min-width: 18px; padding: 0 5px; border-radius: 9px; background: #e03131; color: #fff; font-size: 11px; font-weight: 700; text-align: center; margin-left: 4px; }
+  .cols { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+  .col.chosen { outline: 2px solid var(--accent); outline-offset: -1px; }
+  .col-head { margin-bottom: 10px; }
+  .col-head .rule { color: var(--muted); font-size: 12.5px; margin: 3px 0 6px; }
+  .chosen-tag { font-size: 11px; font-weight: 700; color: var(--accent); background: var(--accent-soft); padding: 1px 6px; border-radius: 4px; margin-left: 6px; }
+  .cost { font-size: 12px; color: var(--muted); }
+  .cost b { color: var(--ink); }
+  .item { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; margin-bottom: 7px; cursor: pointer; position: relative; }
+  .item.unread { border-left: 3px solid var(--accent); }
+  .item.changed { background: var(--warn); }
+  .item.gone { background: var(--gone); color: var(--muted); font-style: italic; cursor: default; }
+  .item .link { font: 11.5px ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--accent); margin-top: 2px; word-break: break-all; }
+  .item .was { font-size: 12px; color: var(--warn-ink); margin-top: 3px; }
+  .item .meta { font-size: 11px; color: var(--muted); margin-top: 3px; }
+  .mail { font-size: 11px; background: var(--accent-soft); color: var(--accent); padding: 0 5px; border-radius: 4px; margin-left: 4px; font-style: normal; }
+  .stored { font: 11px ui-monospace, SFMono-Regular, Menlo, monospace; background: #f4f4f1; border-radius: 6px; padding: 6px; margin-top: 6px; white-space: pre-wrap; word-break: break-all; color: #444; }
+  .empty { color: var(--muted); font-size: 13px; padding: 10px 0; }
+  .toggle { font-size: 13px; color: var(--muted); display: flex; gap: 6px; align-items: center; margin-left: auto; }
+  .happened { margin-bottom: 14px; padding: 10px 12px; border-radius: 8px; background: var(--accent-soft); font-size: 13.5px; }
+  .happened b { color: var(--accent); }
+  .world dl { display: grid; grid-template-columns: max-content 1fr; gap: 4px 12px; margin: 0; font-size: 13px; }
+  .world dt { color: var(--muted); }
+  .world dd { margin: 0; }
+  .outbox div { font-size: 12.5px; border-bottom: 1px dashed var(--line); padding: 4px 0; }
+  .outbox div:last-child { border: none; }
+  .bottom { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 14px; }
+  @media (max-width: 1100px) { .cols { grid-template-columns: 1fr; } .layout { grid-template-columns: 1fr; } aside { position: static; max-height: none; } }
+</style>
+</head>
+<body>
+
+<header>
+  <h1><span class="tag-proto">PROTOTYPE</span>Notification Types: three ways to store them</h1>
+  <p class="lede">
+    Make things happen on Cadence with the buttons on the left, then look at anyone's Notifications.
+    Each Notification is raised once, for the same Recipients, and then stored three different ways:
+    <b>A</b> keeps only ids and looks everything up when shown, <b>B</b> keeps the finished sentence,
+    <b>C</b> (the one we chose) keeps a snapshot of the facts and writes the sentence when shown.
+    Yellow means "this changed since your last click". Click a Notification to mark it read.
+  </p>
+</header>
+
+<nav class="tabs" id="tabs"></nav>
+<section class="card walk" id="walk"></section>
+
+<div class="layout">
+  <aside>
+    <div class="card actions" id="actions"></div>
+  </aside>
+
+  <main>
+    <div class="happened" id="happened"></div>
+    <div class="viewer" id="viewer"></div>
+    <div class="cols" id="cols"></div>
+    <div class="bottom">
+      <div class="card world" id="world"></div>
+      <div class="card outbox" id="outbox"></div>
+    </div>
+  </main>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════════════
+// The model. Pure: no DOM. `dispatch(world, action) -> { world, said }`.
+// Mirrors shape-a/b/c-*.ts: every Notification Type has
+//   recipients(world, input)     worked out once, when raised
+//   ids(input)                   what shape A stores
+//   load(world, ids)             facts from the world (A: at display, B and C: at raise)
+//   text(wording, facts) / link(facts) / email?
+// ═══════════════════════════════════════════════════════════════════════════
+const Model = (() => {
+  const PEOPLE = {
+    ana:  { name: "Ana",  role: "Student" },
+    ben:  { name: "Ben",  role: "Student" },
+    carl: { name: "Carl", role: "Student" },
+    ivy:  { name: "Ivy",  role: "Instructor" },
+    pat:  { name: "Pat",  role: "Platform Admin" },
+  };
+
+  function initialWorld() {
+    return {
+      course: { id: 1, title: "Intro to SQL", slug: "intro-to-sql", instructor: "ivy" },
+      lessons: [{ id: 1, title: "Joins" }],
+      enrolled: ["ana", "ben"],
+      comments: [{ id: 1, lessonId: 1, by: "ana", parentId: null, body: "How do joins work?", deleted: false }],
+      refunds: [],
+      wording: 1,
+      notifications: [],
+      reads: {},
+      outbox: [],
+      nextId: 10,
+      step: 0,
+      counters: { lesson: 0, course: 0, announcement: 0, comment: 0 },
+    };
+  }
+
+  const lessonById = (w, id) => w.lessons.find((l) => l.id === id);
+  const name = (p) => PEOPLE[p].name;
+  const platformAdmins = () => Object.keys(PEOPLE).filter((p) => PEOPLE[p].role === "Platform Admin");
+
+  const TYPES = {
+    reply_to_your_comment: {
+      label: "Reply to your comment",
+      recipients: (w, { replyId }) => {
+        const reply = w.comments.find((c) => c.id === replyId);
+        return [w.comments.find((c) => c.id === reply.parentId).by];
+      },
+      ids: ({ replyId }) => ({ replyId }),
+      load: (w, { replyId }) => {
+        const r = w.comments.find((c) => c.id === replyId);
+        if (!r || r.deleted) return null;
+        return { replyId, replier: name(r.by), lesson: { id: r.lessonId, title: lessonById(w, r.lessonId).title }, course: { title: w.course.title, slug: w.course.slug } };
+      },
+      text: (v, d) => v === 1
+        ? `${d.replier} replied to your comment on "${d.lesson.title}"`
+        : `💬 New reply from ${d.replier} in ${d.course.title} › ${d.lesson.title}`,
+      link: (d) => `/courses/${d.course.slug}/lessons/${d.lesson.id}#comment-${d.replyId}`,
+    },
+    new_comment_on_your_lesson: {
+      label: "New comment on your lesson",
+      recipients: (w) => [w.course.instructor],
+      ids: ({ commentId }) => ({ commentId }),
+      load: (w, { commentId }) => {
+        const c = w.comments.find((x) => x.id === commentId);
+        if (!c || c.deleted) return null;
+        return { commentId, author: name(c.by), lesson: { id: c.lessonId, title: lessonById(w, c.lessonId).title }, course: { title: w.course.title, slug: w.course.slug } };
+      },
+      text: (v, d) => v === 1
+        ? `${d.author} commented on "${d.lesson.title}"`
+        : `💬 ${d.author} left a comment in ${d.course.title} › ${d.lesson.title}`,
+      link: (d) => `/courses/${d.course.slug}/lessons/${d.lesson.id}#comment-${d.commentId}`,
+    },
+    new_lesson_on_your_course: {
+      label: "New lesson on your course",
+      recipients: (w) => [...w.enrolled],
+      ids: ({ lessonId }) => ({ lessonId }),
+      load: (w, { lessonId }) => {
+        const l = lessonById(w, lessonId);
+        return l ? { lesson: { id: l.id, title: l.title }, course: { title: w.course.title, slug: w.course.slug } } : null;
+      },
+      text: (v, d) => v === 1
+        ? `New lesson on ${d.course.title}: "${d.lesson.title}"`
+        : `📚 ${d.course.title} has a new lesson: ${d.lesson.title}`,
+      link: (d) => `/courses/${d.course.slug}/lessons/${d.lesson.id}`,
+    },
+    student_enrolled_on_your_course: {
+      label: "Student enrolled on your course",
+      recipients: (w) => [w.course.instructor],
+      ids: ({ student }) => ({ student }),
+      load: (w, { student }) => ({ student: name(student), course: { title: w.course.title, slug: w.course.slug } }),
+      text: (v, d) => v === 1
+        ? `${d.student} enrolled on ${d.course.title}`
+        : `🎉 ${d.student} just joined ${d.course.title}`,
+      link: () => `/instructor/1/students`,
+    },
+    new_refund_request: {
+      label: "New Refund Request",
+      recipients: () => platformAdmins(),
+      ids: ({ refundId }) => ({ refundId }),
+      load: (w, { refundId }) => {
+        const r = w.refunds.find((x) => x.id === refundId);
+        return { refundId, buyer: name(r.buyer), course: { title: w.course.title } };
+      },
+      text: (v, d) => v === 1
+        ? `${d.buyer} asked for a refund on ${d.course.title}`
+        : `💸 Refund Request to decide: ${d.buyer}, ${d.course.title}`,
+      link: () => `/admin/refunds`,
+      email: (d) => `New refund request — ${d.course.title}`,
+    },
+    refund_request_decided: {
+      label: "Refund Request decided",
+      recipients: (w, { refundId }) => [w.refunds.find((x) => x.id === refundId).buyer],
+      ids: ({ refundId }) => ({ refundId }),
+      load: (w, { refundId }) => {
+        const r = w.refunds.find((x) => x.id === refundId);
+        return { refundId, approved: r.status === "approved", course: { title: w.course.title, slug: w.course.slug } };
+      },
+      text: (v, d) => v === 1
+        ? `Your refund request for ${d.course.title} was ${d.approved ? "approved" : "declined"}`
+        : `💸 ${d.course.title}: refund ${d.approved ? "approved" : "declined"}`,
+      link: (d) => `/courses/${d.course.slug}`,
+      email: (d) => `Refund ${d.approved ? "approved" : "declined"} — ${d.course.title}`,
+    },
+    announcement_posted: {
+      label: "Announcement posted",
+      recipients: (w) => [...w.enrolled],
+      ids: ({ announcementId }) => ({ announcementId }),
+      // Announcements are out of scope, so there is no table to look the title up in.
+      // B and C get the title handed to them when it's raised; A has nowhere to load it from.
+      load: (w, input) => ({ title: input.title ?? "(title unknown: no Announcements table to look it up in)", course: { title: w.course.title, slug: w.course.slug } }),
+      text: (v, d) => v === 1 ? `${d.course.title}: ${d.title}` : `📣 ${d.course.title} · ${d.title}`,
+      link: (d) => `/courses/${d.course.slug}#announcements`,
+    },
+  };
+
+  // Raise a Notification: Recipients fixed now, never the actor themselves.
+  function raise(w, type, input, actor) {
+    const def = TYPES[type];
+    const recipients = def.recipients(w, input).filter((p) => p !== actor);
+    if (recipients.length === 0) return null;
+    const facts = def.load(w, input);
+    const n = {
+      id: w.nextId++,
+      type,
+      step: w.step,
+      recipients,
+      stored: {
+        A: { type, params: def.ids(input) },
+        B: { type, text: def.text(w.wording, facts), link: def.link(facts) },
+        C: { type, params: facts },
+      },
+    };
+    w.notifications.push(n);
+    if (def.email) for (const p of recipients) w.outbox.push({ to: name(p), subject: def.email(facts), step: w.step });
+    return n;
+  }
+
+  // Show one stored Notification under one shape, against the world as it is now.
+  // Returns { text, link, reads } or null when it can't be shown any more.
+  function show(w, n, shape) {
+    const def = TYPES[n.type];
+    if (shape === "B") return { text: n.stored.B.text, link: n.stored.B.link, reads: 0 };
+    if (shape === "C") {
+      const p = n.stored.C.params;
+      return { text: def.text(w.wording, p), link: def.link(p), reads: 0 };
+    }
+    const facts = def.load(w, n.stored.A.params);
+    if (!facts) return null;
+    return { text: def.text(w.wording, facts), link: def.link(facts), reads: 1 };
+  }
+
+  const COURSE_NAMES = ["SQL from Zero", "SQL for Humans", "Practical SQL", "Intro to SQL"];
+  const LESSON_NAMES = ["Indexes", "Window functions", "CTEs", "Transactions", "Views"];
+  const ANNOUNCEMENTS = ["Office hours moved to Thursday", "Live Q&A this Friday", "New exercises added"];
+  const COMMENTS = ["Is there a cheat sheet?", "Great lesson!", "What about outer joins?"];
+
+  const openRefund = (w) => w.refunds.find((r) => r.status === "open");
+  const anaTopComment = (w) => [...w.comments].reverse().find((c) => c.by === "ana" && !c.parentId && !c.deleted);
+  const latestBenReply = (w) => [...w.comments].reverse().find((c) => c.by === "ben" && c.parentId && !c.deleted);
+
+  // Every action: who does it, what it's called, when it's allowed, what it does.
+  const ACTIONS = {
+    ivyAddsLesson: {
+      who: "ivy", label: (w) => `Add the lesson "${LESSON_NAMES[w.counters.lesson % LESSON_NAMES.length]}"`,
+      can: () => true,
+      run: (w) => {
+        const title = LESSON_NAMES[w.counters.lesson++ % LESSON_NAMES.length];
+        const l = { id: w.nextId++, title };
+        w.lessons.push(l);
+        const n = raise(w, "new_lesson_on_your_course", { lessonId: l.id }, "ivy");
+        return `Ivy added the lesson "${title}". ${told(n)}`;
+      },
+    },
+    ivyPostsAnnouncement: {
+      who: "ivy", label: (w) => `Post "${ANNOUNCEMENTS[w.counters.announcement % ANNOUNCEMENTS.length]}"`,
+      can: () => true,
+      run: (w) => {
+        const title = ANNOUNCEMENTS[w.counters.announcement++ % ANNOUNCEMENTS.length];
+        const n = raise(w, "announcement_posted", { announcementId: w.nextId, title }, "ivy");
+        return `Ivy posted the Announcement "${title}". ${told(n)}`;
+      },
+    },
+    renameCourse: {
+      who: "ivy", label: (w) => `Rename the course to "${COURSE_NAMES[w.counters.course % COURSE_NAMES.length]}"`,
+      can: () => true,
+      run: (w) => {
+        const old = w.course.title;
+        w.course.title = COURSE_NAMES[w.counters.course++ % COURSE_NAMES.length];
+        return `Ivy renamed the course from "${old}" to "${w.course.title}". Nobody is notified; look at what old Notifications say now.`;
+      },
+    },
+    renameLesson: {
+      who: "ivy", label: () => `Rename the "Joins" lesson`,
+      can: (w) => lessonById(w, 1).title === "Joins",
+      run: (w) => {
+        lessonById(w, 1).title = "Joins, explained";
+        return `Ivy renamed the lesson "Joins" to "Joins, explained".`;
+      },
+    },
+    anaComments: {
+      who: "ana", label: (w) => `Comment "${COMMENTS[w.counters.comment % COMMENTS.length]}"`,
+      can: () => true,
+      run: (w) => {
+        const body = COMMENTS[w.counters.comment++ % COMMENTS.length];
+        const c = { id: w.nextId++, lessonId: 1, by: "ana", parentId: null, body, deleted: false };
+        w.comments.push(c);
+        const n = raise(w, "new_comment_on_your_lesson", { commentId: c.id }, "ana");
+        return `Ana commented "${body}" on a lesson. ${told(n)}`;
+      },
+    },
+    anaRepliesToHerself: {
+      who: "ana", label: () => `Reply to her own comment`,
+      can: (w) => !!anaTopComment(w),
+      run: (w) => {
+        const parent = anaTopComment(w);
+        const c = { id: w.nextId++, lessonId: parent.lessonId, by: "ana", parentId: parent.id, body: "Never mind, figured it out", deleted: false };
+        w.comments.push(c);
+        const n = raise(w, "reply_to_your_comment", { replyId: c.id }, "ana");
+        return `Ana replied to her own comment. ${told(n)} (Nobody is notified of their own action.)`;
+      },
+    },
+    anaRequestsRefund: {
+      who: "ana", label: () => `Ask for a refund`,
+      can: (w) => w.enrolled.includes("ana") && !openRefund(w),
+      run: (w) => {
+        const r = { id: w.nextId++, buyer: "ana", status: "open" };
+        w.refunds.push(r);
+        const n = raise(w, "new_refund_request", { refundId: r.id }, "ana");
+        return `Ana asked for a refund. ${told(n)}`;
+      },
+    },
+    benReplies: {
+      who: "ben", label: () => `Reply to Ana's comment`,
+      can: (w) => !!anaTopComment(w),
+      run: (w) => {
+        const parent = anaTopComment(w);
+        const c = { id: w.nextId++, lessonId: parent.lessonId, by: "ben", parentId: parent.id, body: "Here's how", deleted: false };
+        w.comments.push(c);
+        const n = raise(w, "reply_to_your_comment", { replyId: c.id }, "ben");
+        return `Ben replied to Ana's comment "${parent.body}". ${told(n)}`;
+      },
+    },
+    benDeletesReply: {
+      who: "ben", label: () => `Delete his latest reply`,
+      can: (w) => !!latestBenReply(w),
+      run: (w) => {
+        latestBenReply(w).deleted = true;
+        return `Ben deleted his reply. Nobody is notified; look at Ana's Notification about it.`;
+      },
+    },
+    benLosesEnrollment: {
+      who: "ben", label: () => `Lose his Enrollment`,
+      can: (w) => w.enrolled.includes("ben"),
+      run: (w) => {
+        w.enrolled = w.enrolled.filter((p) => p !== "ben");
+        return `Ben lost his Enrollment. He keeps what he already got, but gets nothing new.`;
+      },
+    },
+    carlEnrolls: {
+      who: "carl", label: () => `Enroll on the course`,
+      can: (w) => !w.enrolled.includes("carl"),
+      run: (w) => {
+        w.enrolled.push("carl");
+        const n = raise(w, "student_enrolled_on_your_course", { student: "carl" }, "carl");
+        return `Carl enrolled. ${told(n)} He won't see anything raised before now.`;
+      },
+    },
+    patApproves: {
+      who: "pat", label: () => `Approve the open Refund Request`,
+      can: (w) => !!openRefund(w),
+      run: (w) => {
+        const r = openRefund(w);
+        r.status = "approved";
+        w.enrolled = w.enrolled.filter((p) => p !== r.buyer);
+        const n = raise(w, "refund_request_decided", { refundId: r.id }, "pat");
+        return `Pat approved ${name(r.buyer)}'s Refund Request, which ends her Enrollment. ${told(n)}`;
+      },
+    },
+    patDeclines: {
+      who: "pat", label: () => `Decline the open Refund Request`,
+      can: (w) => !!openRefund(w),
+      run: (w) => {
+        const r = openRefund(w);
+        r.status = "declined";
+        const n = raise(w, "refund_request_decided", { refundId: r.id }, "pat");
+        return `Pat declined ${name(r.buyer)}'s Refund Request. ${told(n)}`;
+      },
+    },
+    changeWording: {
+      who: "dev", label: (w) => w.wording === 1 ? `Ship new wording for every type` : `Go back to the original wording`,
+      can: () => true,
+      run: (w) => {
+        w.wording = w.wording === 1 ? 2 : 1;
+        return `A developer changed the wording in the code (now version ${w.wording}). Which shapes pick that up for old Notifications?`;
+      },
+    },
+  };
+
+  function told(n) {
+    if (!n) return "Nobody is notified.";
+    const def = TYPES[n.type];
+    return `"${def.label}" goes to ${n.recipients.map(name).join(", ")}${def.email ? ", and is also emailed" : ""}.`;
+  }
+
+  function dispatch(world, actionKey) {
+    const w = structuredClone(world);
+    const a = ACTIONS[actionKey];
+    if (!a.can(w)) return { world, said: "That can't happen right now." };
+    w.step++;
+    const said = a.run(w);
+    return { world: w, said };
+  }
+
+  function markRead(world, nid, person) {
+    const w = structuredClone(world);
+    w.reads[`${nid}:${person}`] = true;
+    return w;
+  }
+
+  function markAllRead(world, person) {
+    const w = structuredClone(world);
+    for (const n of w.notifications) if (n.recipients.includes(person)) w.reads[`${n.id}:${person}`] = true;
+    return w;
+  }
+
+  function logFor(world, person) {
+    return world.notifications.filter((n) => n.recipients.includes(person)).reverse();
+  }
+
+  return { PEOPLE, TYPES, ACTIONS, initialWorld, dispatch, show, markRead, markAllRead, logFor };
+})();
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Guided walkthroughs. Each starts from a fresh Cadence.
+// ═══════════════════════════════════════════════════════════════════════════
+const WALKS = [
+  { title: "Course renamed",
+    about: "Ivy publishes a lesson, so Ana and Ben are told. Then she renames the course. What should the old Notification say: the name it had then, or the name it has now?",
+    watch: "After the rename, only A changes (yellow). B and C keep \"Intro to SQL\", like the email that already went out would.",
+    viewer: "ana", steps: ["ivyAddsLesson", "renameCourse"] },
+  { title: "Reply deleted",
+    about: "Ben replies to Ana's comment, then deletes his reply.",
+    watch: "Under A, Ana's Notification disappears from her log, so the thing she was told about silently vanishes. Under B and C it stays, and its link goes to a lesson without that reply.",
+    viewer: "ana", steps: ["benReplies", "benDeletesReply"] },
+  { title: "New wording shipped",
+    about: "A few Notifications go out, then a developer changes the wording in the code.",
+    watch: "A and C rewrite every old Notification in the new style; B is stuck with whatever words it stored. That's the main thing C gains over B.",
+    viewer: "ana", steps: ["ivyAddsLesson", "benReplies", "changeWording"] },
+  { title: "Recipients are fixed",
+    about: "A lesson goes out, then Carl enrolls and Ben loses his Enrollment, then another lesson goes out.",
+    watch: "Switch between Ana, Ben and Carl. Carl only has the second lesson; Ben only has the first. All three shapes agree, because Recipients are worked out once, when the Notification is raised.",
+    viewer: "carl", steps: ["ivyAddsLesson", "carlEnrolls", "benLosesEnrollment", "ivyAddsLesson"] },
+  { title: "Refund, decided",
+    about: "Ana asks for a refund; Pat (Platform Admin) approves it. Both types also email.",
+    watch: "Pat gets the request, Ana gets the decision, and both appear in the Outbox. Approval ends Ana's Enrollment, so the next lesson doesn't reach her.",
+    viewer: "ana", steps: ["anaRequestsRefund", "patApproves", "ivyAddsLesson"] },
+  { title: "Announcement posted",
+    about: "The test case: a brand-new type for a feature that doesn't exist yet.",
+    watch: "B and C show the title they were handed when it was raised. A only stored ids and has no Announcements table to look the title up in, so it can't say what the Announcement was.",
+    viewer: "ben", steps: ["ivyPostsAnnouncement"] },
+];
+
+// ═══════════════════════════════════════════════════════════════════════════
+// The page. Throwaway.
+// ═══════════════════════════════════════════════════════════════════════════
+const SHAPES = {
+  A: { title: "A · Store ids, look up when shown", rule: "Stores only ids. Every time you open the log it reads the database for each one." },
+  B: { title: "B · Store the finished sentence", rule: "Writes the sentence once, when raised, and keeps it forever." },
+  C: { title: "C · Store a snapshot, write the sentence when shown", rule: "Keeps the facts as they were (names, ids); the wording comes from the code at display time.", chosen: true },
+};
+const GROUPS = [
+  ["ivy", "Ivy · Instructor"], ["ana", "Ana · Student"], ["ben", "Ben · Student"],
+  ["carl", "Carl · Student, not enrolled yet"], ["pat", "Pat · Platform Admin"], ["dev", "A developer"],
+];
+
+let world = Model.initialWorld();
+let viewer = "ana";
+let said = "Nothing has happened yet. Pick something on the left, or try a walkthrough above.";
+let prev = {};          // `${shape}:${nid}` -> text shown before the last action
+let tab = -1;           // -1 = free play
+let walkStep = 0;
+let showStored = false;
+
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+function snapshotTexts() {
+  const out = {};
+  for (const n of world.notifications) for (const s of "ABC") {
+    const r = Model.show(world, n, s);
+    out[`${s}:${n.id}`] = r ? r.text : null;
+  }
+  return out;
+}
+
+function act(key) {
+  prev = snapshotTexts();
+  const r = Model.dispatch(world, key);
+  world = r.world; said = r.said;
+  render();
+}
+
+function reset() { world = Model.initialWorld(); prev = {}; said = "Fresh start."; }
+
+function render() {
+  renderTabs(); renderWalk(); renderActions(); renderViewer(); renderCols(); renderWorld(); renderOutbox();
+  $("happened").innerHTML = `<b>Just happened:</b> ${esc(said)}`;
+}
+
+function renderTabs() {
+  const t = [`<button class="${tab === -1 ? "on" : ""}" data-tab="-1">Free play</button>`]
+    .concat(WALKS.map((w, i) => `<button class="${tab === i ? "on" : ""}" data-tab="${i}">${i + 1}. ${esc(w.title)}</button>`));
+  $("tabs").innerHTML = t.join("");
+  $("tabs").querySelectorAll("button").forEach((b) => b.onclick = () => {
+    tab = +b.dataset.tab; walkStep = 0; reset();
+    if (tab >= 0) viewer = WALKS[tab].viewer;
+    render();
+  });
+}
+
+function renderWalk() {
+  const el = $("walk");
+  if (tab === -1) {
+    el.innerHTML = `<p>Free play: click anything on the left, in any order, and switch whose Notifications you're looking at.
+      <button id="resetBtn" style="margin-left:8px">Start Cadence over</button></p>`;
+    $("resetBtn").onclick = () => { reset(); render(); };
+    return;
+  }
+  const w = WALKS[tab];
+  // Label each step as it will read when its turn comes, by replaying from a fresh Cadence.
+  let sim = Model.initialWorld();
+  const labels = w.steps.map((k) => { const l = Model.ACTIONS[k].label(sim); sim = Model.dispatch(sim, k).world; return l; });
+  const steps = w.steps.map((k, i) => {
+    const a = Model.ACTIONS[k];
+    const who = Model.PEOPLE[a.who]?.name ?? "Developer";
+    const cls = i < walkStep ? "done" : i === walkStep ? "primary" : "";
+    return `<button class="${cls}" data-step="${i}" ${i !== walkStep ? "disabled" : ""}>${i + 1}. ${esc(who)}: ${esc(labels[i])}</button>`;
+  }).join(`<span class="arrow">→</span>`);
+  el.innerHTML = `<p>${esc(w.about)}</p><div class="steps">${steps}
+      <button id="restartWalk" style="margin-left:auto">Restart</button></div>
+      ${walkStep >= w.steps.length ? `<div class="watch"><b>What to notice:</b> ${esc(w.watch)}</div>` : ""}`;
+  el.querySelectorAll("[data-step]").forEach((b) => b.onclick = () => { walkStep++; act(w.steps[+b.dataset.step]); });
+  $("restartWalk").onclick = () => { walkStep = 0; reset(); viewer = w.viewer; render(); };
+}
+
+function renderActions() {
+  const html = [`<h2>Things that happen on Cadence</h2>`];
+  for (const [who, label] of GROUPS) {
+    const keys = Object.keys(Model.ACTIONS).filter((k) => Model.ACTIONS[k].who === who);
+    html.push(`<div class="group"><div class="who">${esc(label)}</div>` +
+      keys.map((k) => `<button data-act="${k}" ${Model.ACTIONS[k].can(world) ? "" : "disabled"}>${esc(Model.ACTIONS[k].label(world))}</button>`).join("") +
+      `</div>`);
+  }
+  $("actions").innerHTML = html.join("");
+  $("actions").querySelectorAll("[data-act]").forEach((b) => b.onclick = () => act(b.dataset.act));
+}
+
+function unread(person) {
+  return Model.logFor(world, person).filter((n) => !world.reads[`${n.id}:${person}`]).length;
+}
+
+function renderViewer() {
+  const people = Object.keys(Model.PEOPLE).map((p) => {
+    const u = unread(p);
+    return `<button class="${viewer === p ? "on" : ""}" data-p="${p}">${esc(Model.PEOPLE[p].name)} <span style="opacity:.7">(${esc(Model.PEOPLE[p].role)})</span>${u ? `<span class="badge">${u}</span>` : ""}</button>`;
+  }).join("");
+  $("viewer").innerHTML = `<span style="color:var(--muted)">Whose Notifications?</span> ${people}
+    <button id="markAll">Mark all read</button>
+    <label class="toggle"><input type="checkbox" id="stored" ${showStored ? "checked" : ""}> Show what's stored</label>`;
+  $("viewer").querySelectorAll("[data-p]").forEach((b) => b.onclick = () => { viewer = b.dataset.p; prev = {}; render(); });
+  $("markAll").onclick = () => { world = Model.markAllRead(world, viewer); render(); };
+  $("stored").onchange = (e) => { showStored = e.target.checked; render(); };
+}
+
+function renderCols() {
+  const log = Model.logFor(world, viewer);
+  $("cols").innerHTML = Object.entries(SHAPES).map(([s, meta]) => {
+    let reads = 1; // the query for the page of the log itself
+    const items = log.map((n) => {
+      const r = Model.show(world, n, s);
+      const def = Model.TYPES[n.type];
+      const isUnread = !world.reads[`${n.id}:${viewer}`];
+      const before = prev[`${s}:${n.id}`];
+      const stored = showStored ? `<div class="stored">${esc(JSON.stringify(n.stored[s], null, 1))}</div>` : "";
+      if (!r) {
+        reads += 1;
+        return `<div class="item gone">Gone from the log: what it pointed at was deleted (${esc(def.label)})${stored}</div>`;
+      }
+      reads += r.reads;
+      const changed = before !== undefined && before !== null && before !== r.text;
+      return `<div class="item ${isUnread ? "unread" : ""} ${changed ? "changed" : ""}" data-n="${n.id}">
+        ${esc(r.text)}${def.email ? `<span class="mail">✉ emailed</span>` : ""}
+        <div class="link">${esc(r.link)}</div>
+        ${changed ? `<div class="was">was: ${esc(before)}</div>` : ""}
+        <div class="meta">${esc(def.label)} · step ${n.step}${isUnread ? " · unread" : ""}</div>
+        ${stored}</div>`;
+    }).join("");
+    return `<section class="card col ${meta.chosen ? "chosen" : ""}">
+      <div class="col-head"><h3>${esc(meta.title)}${meta.chosen ? `<span class="chosen-tag">CHOSEN</span>` : ""}</h3>
+        <div class="rule">${esc(meta.rule)}</div>
+        <div class="cost">Showing this log: <b>${reads}</b> database ${reads === 1 ? "read" : "reads"}</div></div>
+      ${items || `<div class="empty">${esc(Model.PEOPLE[viewer].name)} has no Notifications.</div>`}
+    </section>`;
+  }).join("");
+  $("cols").querySelectorAll("[data-n]").forEach((el) => el.onclick = () => { world = Model.markRead(world, +el.dataset.n, viewer); render(); });
+}
+
+function renderWorld() {
+  const c = world.comments.map((x) => `${Model.PEOPLE[x.by].name}${x.parentId ? " (reply)" : ""}: "${esc(x.body)}"${x.deleted ? " <i>(deleted)</i>" : ""}`).join("<br>");
+  const r = world.refunds.map((x) => `${Model.PEOPLE[x.buyer].name}: ${x.status}`).join(", ") || "none";
+  $("world").innerHTML = `<h2>Cadence right now</h2><dl>
+    <dt>Course</dt><dd>${esc(world.course.title)} <span style="color:var(--muted)">(taught by Ivy)</span></dd>
+    <dt>Lessons</dt><dd>${world.lessons.map((l) => esc(l.title)).join(", ")}</dd>
+    <dt>Enrolled</dt><dd>${world.enrolled.map((p) => Model.PEOPLE[p].name).join(", ") || "nobody"}</dd>
+    <dt>Comments</dt><dd>${c}</dd>
+    <dt>Refund Requests</dt><dd>${r}</dd>
+    <dt>Wording in code</dt><dd>version ${world.wording}</dd>
+    <dt>Notifications</dt><dd>${world.notifications.length} raised</dd></dl>`;
+}
+
+function renderOutbox() {
+  const mails = [...world.outbox].reverse().map((m) => `<div>To <b>${esc(m.to)}</b>: ${esc(m.subject)} <span style="color:var(--muted)">· step ${m.step}</span></div>`).join("");
+  $("outbox").innerHTML = `<h2>Email outbox</h2>
+    <p style="margin:0 0 8px;color:var(--muted);font-size:12.5px">Sent once, when raised. The same under every shape: an email can't be changed after it goes out.</p>
+    ${mails || `<div style="color:var(--muted)">Nothing emailed yet.</div>`}`;
+}
+
+render();
+</script>
+</body>
+</html>
