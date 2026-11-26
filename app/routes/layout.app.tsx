@@ -11,8 +11,6 @@ import { NotificationsPrototypeProvider } from "~/components/notifications.proto
 import {
   NOTIFICATION_VARIANTS,
   NotificationsHeaderSlot,
-  NotificationsNavSlot,
-  NotificationsFooterSlot,
   NotificationsPrototypeControls,
 } from "~/components/notifications.prototype/variants";
 import { getCurrentUserId, getDevCountry } from "~/lib/session";
@@ -239,7 +237,7 @@ export default function AppLayout({ loaderData }: Route.ComponentProps) {
     isTeamAdmin: userIsTeamAdmin,
   } = loaderData;
 
-  // PROTOTYPE (issue #7): Notification UI variants, ?variant=A|B|C
+  // PROTOTYPE (issue #7): Notification UI variants, ?variant=B1|B2|B3
   const notificationVariant = usePrototypeVariant(
     NOTIFICATION_VARIANTS.map((v) => v.key)
   );
@@ -256,8 +254,6 @@ export default function AppLayout({ loaderData }: Route.ComponentProps) {
         recentCourses={recentCourses}
         isTeamAdmin={userIsTeamAdmin}
         headerSlot={<NotificationsHeaderSlot variant={notificationVariant} />}
-        navSlot={<NotificationsNavSlot variant={notificationVariant} />}
-        footerSlot={<NotificationsFooterSlot variant={notificationVariant} />}
       />
       <main className="flex-1 overflow-y-auto">
         <Outlet />
@@ -267,7 +263,7 @@ export default function AppLayout({ loaderData }: Route.ComponentProps) {
           variants={NOTIFICATION_VARIANTS}
           current={notificationVariant}
         >
-          <NotificationsPrototypeControls variant={notificationVariant} />
+          <NotificationsPrototypeControls />
         </PrototypeSwitcher>
       )}
       <DevUI
