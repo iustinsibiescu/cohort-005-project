@@ -3,6 +3,18 @@ import type { Route } from "./+types/layout.app";
 import { Sidebar } from "~/components/sidebar";
 import { DevUI } from "~/components/dev-ui";
 import { Toaster } from "sonner";
+import {
+  PrototypeSwitcher,
+  usePrototypeVariant,
+} from "~/components/prototype-switcher";
+import { NotificationsPrototypeProvider } from "~/components/notifications.prototype/store";
+import {
+  NOTIFICATION_VARIANTS,
+  NotificationsHeaderSlot,
+  NotificationsNavSlot,
+  NotificationsFooterSlot,
+  NotificationsPrototypeControls,
+} from "~/components/notifications.prototype/variants";
 import { getCurrentUserId, getDevCountry } from "~/lib/session";
 import { getCountryTierInfo, COUNTRIES } from "~/lib/ppp";
 import { eq, and, or, sql, desc } from "drizzle-orm";
@@ -227,16 +239,37 @@ export default function AppLayout({ loaderData }: Route.ComponentProps) {
     isTeamAdmin: userIsTeamAdmin,
   } = loaderData;
 
+  // PROTOTYPE (issue #7): Notification UI variants, ?variant=A|B|C
+  const notificationVariant = usePrototypeVariant(
+    NOTIFICATION_VARIANTS.map((v) => v.key)
+  );
+
   return (
+    <NotificationsPrototypeProvider
+      role={currentUser?.role ?? null}
+      isTeamAdmin={userIsTeamAdmin}
+      userId={currentUser?.id ?? null}
+    >
     <div className="flex h-screen overflow-hidden">
       <Sidebar
         currentUser={currentUser}
         recentCourses={recentCourses}
         isTeamAdmin={userIsTeamAdmin}
+        headerSlot={<NotificationsHeaderSlot variant={notificationVariant} />}
+        navSlot={<NotificationsNavSlot variant={notificationVariant} />}
+        footerSlot={<NotificationsFooterSlot variant={notificationVariant} />}
       />
       <main className="flex-1 overflow-y-auto">
         <Outlet />
       </main>
+      {currentUser && (
+        <PrototypeSwitcher
+          variants={NOTIFICATION_VARIANTS}
+          current={notificationVariant}
+        >
+          <NotificationsPrototypeControls variant={notificationVariant} />
+        </PrototypeSwitcher>
+      )}
       <DevUI
         users={users}
         currentUser={currentUser}
@@ -246,5 +279,6 @@ export default function AppLayout({ loaderData }: Route.ComponentProps) {
       />
       <Toaster position="bottom-right" richColors closeButton />
     </div>
+    </NotificationsPrototypeProvider>
   );
 }
